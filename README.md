@@ -69,6 +69,58 @@ python main.py
 
 Then open your browser to [http://localhost:8000](http://localhost:8000) (or the above IP from a remote PC)
 
+
+
+## Architecture Diagram
+
+![Architecture Diagram](diagram.png)
+
+<details>
+<summary>Mermaid Source (for Markdown viewers)</summary>
+
+> **Tip:** To view the diagram below, use a Markdown viewer that supports [Mermaid](https://mermaid-js.github.io/mermaid/#/).
+
+```mermaid
+flowchart TD
+    subgraph Frontend [Frontend (Jinja2 Templates)]
+        A1[Home (index.html)]
+        A2[Chat (chat.html)]
+        A3[Add Knowledge (add_knowledge.html)]
+    end
+
+    subgraph Backend [Backend (FastAPI)]
+        B1[main.py]
+        B2[RAG Module (rag.py)]
+    end
+
+    subgraph KnowledgeSources [Knowledge Sources]
+        C1[C Codebase (Directory)]
+        C2[Confluence (API)]
+    end
+
+    subgraph AI [AI Services]
+        D1[OpenAI GPT-4]
+        D2[Anthropic (optional)]
+    end
+
+    A1 -- Upload logcat, chat, analyze --> B1
+    A2 -- Chat UI --> B1
+    A3 -- Add knowledge source --> B1
+
+    B1 -- Ingest/Query --> B2
+    B2 -- Ingests --> C1
+    B2 -- Ingests --> C2
+
+    B1 -- Calls --> D1
+    B1 -- (optional) Calls --> D2
+
+    B1 -- Renders --> A1
+    B1 -- Renders --> A2
+    B1 -- Renders --> A3
+```
+
+</details>
+
 ## Notes
 - Update the `sources` path in `main.py` to point to your C codebase directory.
 - Confluence integration is optional; if not configured, only codebase RAG is used.
