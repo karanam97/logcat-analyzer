@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Logcat Analyzer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', 'Arial', sans-serif;
+            background: #f3f6fb;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 40px auto;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px 0 rgba(0,0,0,0.08);
+            padding: 32px 32px 24px 32px;
+        }
+        h1 {
+            color: #2564cf;
+            font-size: 2rem;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+        }
+        #upload-form {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 1rem;
+        }
+        #upload-form input[type="file"] {
+            flex: 1;
+        }
+        #upload-form button {
+            background: #2564cf;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 18px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        #upload-form button:hover {
+            background: #174ea6;
+        }
+        #chat-box {
+            background: #f3f6fb;
+            border-radius: 10px;
+            border: 1px solid #e0e6ed;
+            padding: 1em;
+            height: 320px;
+            overflow-y: auto;
+            margin-bottom: 1em;
+            font-size: 1rem;
+        }
+        .user {
+            background: #e8f0fe;
+            color: #2564cf;
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin: 8px 0;
+            text-align: right;
+        }
+        .ai {
+            background: #f1f3f4;
+            color: #222;
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin: 8px 0;
+            text-align: left;
+        }
+        #chat-form {
+            display: flex;
+            gap: 10px;
+        }
+        #user-input {
+            flex: 1;
+            border: 1px solid #e0e6ed;
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 1rem;
+        }
+        #chat-form button {
+            background: #2564cf;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 18px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        #chat-form button:hover {
+            background: #174ea6;
+        }
+        .status {
+            color: #2564cf;
+            font-size: 0.98rem;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Logcat Copilot</h1>
+        <form id="upload-form" action="/analyze" method="post" enctype="multipart/form-data">
+            <input type="file" name="file" id="logfile" accept=".txt,.log" required>
+            <button type="submit">Upload & Analyze</button>
+        </form>
+        <div class="status" id="status-msg">Upload your logcat file to analyze for fastrpc errors. After upload, you can ask questions about the file below.</div>
+        <div id="chat-box"></div>
+        <form id="chat-form" style="align-items: flex-end;">
+            <textarea id="user-input" placeholder="Ask about logcat errors or fastrpc..." required rows="1" style="resize:none;overflow-y:hidden;"></textarea>
+            <button type="submit" style="align-self: flex-end;">Send</button>
+        </form>
+    </div>
+    <script>
+        let uploadedFilename = null;
+        const chatBox = document.getElementById('chat-box');
+        const chatForm = document.getElementById('chat-form');
+        const userInput = document.getElementById('user-input');
+        const uploadForm = document.getElementById('upload-form');
+        const statusMsg = document.getElementById('status-msg');
+
+        uploadForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(uploadForm);
+            statusMsg.textContent = 'Uploading and analyzing...';
+            const res = await fetch('/analyze', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            uploadedFilename = data.filename;
+            chatBox.innerHTML += `<div class='ai'><b>Copilot:</b> File uploaded and analysis started. You can now ask questions about this file.</div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
+            statusMsg.textContent = 'File uploaded. You can now chat with Copilot about your log.';
+        };
+
+        // Auto-expand textarea for multiline input
+        userInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+            // Scroll the chat form to the bottom so the send button is always visible
+            chatForm.scrollIntoView({ behavior: 'auto', block: 'end' });
+        });
+
+        chatForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const userMsg = userInput.value;
+            chatBox.innerHTML += `<div class='user'>${userMsg.replace(/\n/g, '<br>')}</div>`;
+            userInput.value = '';
+            userInput.style.height = 'auto';
+            chatBox.scrollTop = chatBox.scrollHeight;
+            let apiUrl = '/chat';
+            let body = { message: userMsg };
+            if (uploadedFilename) {
+                body.filename = uploadedFilename;
+            }
+            const res = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            chatBox.innerHTML += `<div class='ai'>${data.reply.replace(/\n/g, '<br>')}</div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Logcat Analyzer Chat</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; }
+        #chat-box { border: 1px solid #ccc; padding: 1em; height: 300px; overflow-y: auto; margin-bottom: 1em; }
+        .user { color: blue; }
+        .ai { color: green; }
+    </style>
+</head>
+<body>
+    <h1>Logcat Analyzer Chat</h1>
+    <div id="chat-box"></div>
+    <form id="chat-form">
+        <input type="text" id="user-input" placeholder="Ask about logcat errors or fastrpc..." style="width:70%" required>
+        <button type="submit">Send</button>
+    </form>
+    <script>
+        const chatBox = document.getElementById('chat-box');
+        const chatForm = document.getElementById('chat-form');
+        const userInput = document.getElementById('user-input');
+
+        chatForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const userMsg = userInput.value;
+            chatBox.innerHTML += `<div class='user'><b>You:</b> ${userMsg}</div>`;
+            userInput.value = '';
+            chatBox.scrollTop = chatBox.scrollHeight;
+            const res = await fetch('/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: userMsg })
+            });
+            const data = await res.json();
+            chatBox.innerHTML += `<div class='ai'><b>AI:</b> ${data.reply}</div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
+        };
+    </script>
+    <p><a href="/">Back to Analyzer</a></p>
+</body>
+</html>
