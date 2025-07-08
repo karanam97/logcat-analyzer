@@ -112,14 +112,21 @@ class RAGKnowledgeBase:
         top_conf = scored_conf[:2]
 
         result = [f"Top relevant results for: {question}\n"]
+        references = []
         if top_code:
             result.append("Codebase matches:")
             for idx, (score, chunk) in enumerate(top_code, 1):
                 result.append(f"[{idx}] {chunk['file']} (lines {chunk['start_line']}-{chunk['end_line']}):\n{chunk['content']}\n{'-'*40}")
+                references.append(f"{chunk['file']} (lines {chunk['start_line']}-{chunk['end_line']})")
         if top_conf:
             result.append("Confluence matches:")
             for idx, (score, chunk) in enumerate(top_conf, 1):
                 result.append(f"[{idx}] {chunk['title']} ({chunk['url']}):\n{chunk['content']}\n{'-'*40}")
+                references.append(f"{chunk['title']} ({chunk['url']})")
         if not top_code and not top_conf:
             result.append(f"No relevant code or Confluence content found.\nIndexed {len(self.code_chunks)} code chunks, {len(self.confluence_chunks)} Confluence chunks.")
+        else:
+            result.append("\nReferences used:")
+            for ref in references:
+                result.append(f"- {ref}")
         return '\n'.join(result)
