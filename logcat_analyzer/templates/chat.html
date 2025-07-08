@@ -12,8 +12,14 @@
 <body>
     <h1>Logcat Analyzer Chat</h1>
     <div id="chat-box"></div>
-    <form id="chat-form">
-        <input type="text" id="user-input" placeholder="Ask about logcat errors or fastrpc..." style="width:70%" required>
+    <form id="chat-form" style="display: flex; gap: 0.5em; align-items: center;">
+        <input type="text" id="user-input" placeholder="Ask about logcat errors or fastrpc..." style="flex:2; min-width:200px;" required>
+        <label for="search-level" style="font-size:0.95em;">Search Level:</label>
+        <select id="search-level" style="flex:1; min-width:120px;">
+            <option value="standard">Standard Search</option>
+            <option value="quick">Quick Search</option>
+            <option value="deep">Deep Research</option>
+        </select>
         <button type="submit">Send</button>
     </form>
     <script>
@@ -21,16 +27,18 @@
         const chatForm = document.getElementById('chat-form');
         const userInput = document.getElementById('user-input');
 
+        const searchLevel = document.getElementById('search-level');
         chatForm.onsubmit = async (e) => {
             e.preventDefault();
             const userMsg = userInput.value;
-            chatBox.innerHTML += `<div class='user'><b>You:</b> ${userMsg}</div>`;
+            const level = searchLevel.value;
+            chatBox.innerHTML += `<div class='user'><b>You:</b> ${userMsg} <span style='font-size:0.8em;color:#888;'>[${level}]</span></div>`;
             userInput.value = '';
             chatBox.scrollTop = chatBox.scrollHeight;
             const res = await fetch('/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: userMsg })
+                body: JSON.stringify({ message: userMsg, search_level: level })
             });
             const data = await res.json();
             chatBox.innerHTML += `<div class='ai'><b>AI:</b> ${data.reply}</div>`;

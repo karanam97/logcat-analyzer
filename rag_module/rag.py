@@ -80,9 +80,10 @@ class RAGKnowledgeBase:
             # Could log or print error if needed
             pass
 
-    def query(self, question: str) -> str:
+    def query(self, question: str, depth: str = "standard") -> str:
         """
         Retrieve the most relevant code and Confluence chunks for the question using simple keyword matching.
+        Supports different search levels: quick, standard, deep.
         Returns a formatted string with the top relevant code and Confluence snippets.
         """
         if not question.strip():
@@ -90,6 +91,17 @@ class RAGKnowledgeBase:
 
         import re
         question_words = set(re.findall(r'\w+', question.lower()))
+
+        # Set retrieval parameters based on depth
+        if depth == "deep":
+            code_top_n = 8
+            conf_top_n = 5
+        elif depth == "quick":
+            code_top_n = 1
+            conf_top_n = 1
+        else:  # standard
+            code_top_n = 3
+            conf_top_n = 2
 
         # Code chunk retrieval
         scored_code = []
@@ -99,7 +111,7 @@ class RAGKnowledgeBase:
             if score > 0:
                 scored_code.append((score, chunk))
         scored_code.sort(key=lambda x: (-x[0], x[1]['file']))
-        top_code = scored_code[:3]
+        top_code = scored_code[:code_top_n]
 
         # Confluence chunk retrieval
         scored_conf = []
@@ -109,9 +121,9 @@ class RAGKnowledgeBase:
             if score > 0:
                 scored_conf.append((score, chunk))
         scored_conf.sort(key=lambda x: (-x[0], x[1]['title']))
-        top_conf = scored_conf[:2]
+        top_conf = scored_conf[:conf_top_n]
 
-        result = [f"Top relevant results for: {question}\n"]
+        result = [f"Top relevant results for: {question}\n(Search level: {depth})\n"]
         references = []
         if top_code:
             result.append("Codebase matches:")

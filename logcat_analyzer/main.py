@@ -105,24 +105,45 @@ def get_results(filename: str):
 from fastapi import Body, Request
 from fastapi.responses import JSONResponse
 
-# In-memory chat history: {session_id: [ {"role": "user"|"assistant", "content": str}, ... ] }
-chat_histories = {}
+
+# In-memory chat history: {session_id: {chat_id: [messages]}}
+import uuid
+chat_histories = {}  # {session_id: {chat_id: [messages]}}
 
 def get_session_id(request: Request) -> str:
     # Use client host+port as a simple session id (not secure, for demo only)
     return f"{request.client.host}:{request.client.port}"
 
+def get_or_create_chat_id(session_id, chat_id=None):
+    if session_id not in chat_histories:
+        chat_histories[session_id] = {}
+    if chat_id and chat_id in chat_histories[session_id]:
+        return chat_id
+    # Create new chat id
+    new_id = str(uuid.uuid4())
+    chat_histories[session_id][new_id] = []
+    return new_id
+
+
 @app.post("/chat")
 async def chat_api(request: Request, message: dict = Body(...)):
     user_message = message.get("message", "")
     filename = message.get("filename")
-    if not user_message.strip():
-        return JSONResponse({"reply": "Please enter a message."})
+    search_level = message.get("search_level")
+    chat_id = message.get("chat_id")
+    new_chat = message.get("new_chat", False)
     session_id = get_session_id(request)
-    history = chat_histories.setdefault(session_id, [])
+    # Handle new chat
+    if new_chat:
+        chat_id = get_or_create_chat_id(session_id)
+        return JSONResponse({"chat_id": chat_id, "history": []})
+    # Use or create chat_id
+    chat_id = get_or_create_chat_id(session_id, chat_id)
+    history = chat_histories[session_id][chat_id]
+    if not user_message.strip():
+        return JSONResponse({"reply": "Please enter a message.", "chat_id": chat_id, "history": history})
     # If user uploaded a file, add its errors/AI explanations to context
     if filename and filename in ai_explanations:
-        # Add a summary of errors as context for the AI
         error_context = "\n".join([
             f"Error: {item['error']}\nAI: {item['ai_explanation']}" for item in ai_explanations[filename]
         ])
@@ -130,22 +151,75 @@ async def chat_api(request: Request, message: dict = Body(...)):
             history.append({"role": "system", "content": f"Here are the errors and explanations from the uploaded logcat file:\n{error_context}"})
     # Add user message to history
     history.append({"role": "user", "content": user_message})
-    reply, next_query = await get_ai_chat_response_with_memory(history, suggest_next_query=True)
+    reply, next_query = await get_ai_chat_response_with_memory(history, suggest_next_query=True, search_level=search_level)
     # Add AI reply to history
     history.append({"role": "assistant", "content": reply})
-    # Limit history to last 10 messages
-    chat_histories[session_id] = history[-10:]
-    return JSONResponse({"reply": reply, "next_query": next_query})
+    # Limit history to last 20 messages
+    chat_histories[session_id][chat_id] = history[-20:]
+    return JSONResponse({"reply": reply, "next_query": next_query, "chat_id": chat_id, "history": chat_histories[session_id][chat_id]})
 
-async def get_ai_chat_response_with_memory(history, suggest_next_query=False):
+# Endpoint to list previous chats for the session
+@app.get("/chats")
+async def list_chats(request: Request):
+    session_id = get_session_id(request)
+    chats = chat_histories.get(session_id, {})
+    return {"chats": list(chats.keys())}
+
+# Endpoint to get a specific chat history
+@app.get("/chat/{chat_id}")
+async def get_chat(request: Request, chat_id: str):
+    session_id = get_session_id(request)
+    chats = chat_histories.get(session_id, {})
+    history = chats.get(chat_id, [])
+    return {"chat_id": chat_id, "history": history}
+
+
+# --- Enhanced: Support for different search levels ---
+from enum import Enum
+
+class SearchLevel(str, Enum):
+    QUICK = "quick"      # Fast, shallow search (default)
+    STANDARD = "standard" # Standard, more context
+    DEEP = "deep"        # Deep research, maximum context
+
+def get_search_level_from_history(history, override=None):
+    """
+    Detects if the user requested a specific search level in their last message, or uses override if provided.
+    Returns a SearchLevel value.
+    """
+    if override:
+        if override == "deep":
+            return SearchLevel.DEEP
+        elif override == "quick":
+            return SearchLevel.QUICK
+        else:
+            return SearchLevel.STANDARD
+    user_message = next((msg['content'] for msg in reversed(history) if msg['role'] == 'user'), "")
+    if "deep research" in user_message.lower():
+        return SearchLevel.DEEP
+    elif "standard search" in user_message.lower() or "standard" in user_message.lower():
+        return SearchLevel.STANDARD
+    elif "quick search" in user_message.lower() or "quick" in user_message.lower():
+        return SearchLevel.QUICK
+    return SearchLevel.STANDARD  # Default to standard
+
+async def get_ai_chat_response_with_memory(history, suggest_next_query=False, search_level=None):
     """
     Use OpenAI GPT-4 for chat, with RAG context if available. Optionally, suggest a next query for the user.
+    Supports different search levels: quick, standard, deep.
     Returns (reply, next_query) if suggest_next_query else just reply.
     """
     system_prompt = "You are an expert Android logcat and fastrpc error assistant. Answer user questions helpfully and use previous context if relevant."
     user_message = next((msg['content'] for msg in reversed(history) if msg['role'] == 'user'), None)
-    rag_context = rag.query(user_message) if user_message else ""
-    prompt = system_prompt + "\n"
+    level = get_search_level_from_history(history, override=search_level)
+    # Adjust RAG context depth based on search level
+    if level == SearchLevel.DEEP:
+        rag_context = rag.query(user_message, depth="deep") if user_message else ""
+    elif level == SearchLevel.QUICK:
+        rag_context = rag.query(user_message, depth="quick") if user_message else ""
+    else:
+        rag_context = rag.query(user_message, depth="standard") if user_message else ""
+    prompt = system_prompt + f"\n[Search Level: {level.value}]\n"
     if rag_context:
         prompt += f"[RAG Context]:\n{rag_context}\n"
     for msg in history:
