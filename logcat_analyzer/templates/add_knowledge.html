@@ -1,0 +1,77 @@
+{% extends "index.html" %}
+{% block content %}
+<div class="container" style="max-width: 600px; margin: 40px auto 0 auto;">
+  <h2>Add Knowledge Source</h2>
+  <form id="add-knowledge-form" style="margin-top: 2em;">
+    <div style="display: flex; gap: 2em; align-items: flex-start;">
+      <div>
+        <label style="display: flex; align-items: center; gap: 0.5em;">
+          <input type="checkbox" id="codebaseCheck" checked>
+          <span style="font-weight: 500;">C Codebase</span>
+        </label>
+        <input type="text" class="form-control" id="codebasePath" name="codebasePath" placeholder="\\network\share\codebase or /mnt/codebase" style="margin-top: 0.5em; width: 260px;">
+      </div>
+      <div>
+        <label style="display: flex; align-items: center; gap: 0.5em;">
+          <input type="checkbox" id="confluenceCheck">
+          <span style="font-weight: 500;">Confluence</span>
+        </label>
+        <input type="text" class="form-control" id="confluenceUrl" name="confluenceUrl" placeholder="https://your-domain.atlassian.net/wiki" style="margin-top: 0.5em; width: 260px;" disabled>
+        <input type="text" class="form-control" id="confluenceUsername" name="confluenceUsername" placeholder="Username" style="margin-top: 0.5em; width: 260px; display:none;">
+        <input type="password" class="form-control" id="confluenceToken" name="confluenceToken" placeholder="API Token" style="margin-top: 0.5em; width: 260px; display:none;">
+        <input type="text" class="form-control" id="confluenceSpace" name="confluenceSpace" placeholder="Space Key" style="margin-top: 0.5em; width: 260px; display:none;">
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary mt-3" style="margin-top: 2em; background: #2564cf; color: #fff; border: none; border-radius: 6px; padding: 10px 24px; font-size: 1.1rem;">Add Source(s)</button>
+  </form>
+  <div id="add-knowledge-result" class="mt-3" style="margin-top: 1.5em;"></div>
+</div>
+<script>
+const codebaseCheck = document.getElementById('codebaseCheck');
+const confluenceCheck = document.getElementById('confluenceCheck');
+const codebasePath = document.getElementById('codebasePath');
+const confluenceUrl = document.getElementById('confluenceUrl');
+const confluenceUsername = document.getElementById('confluenceUsername');
+const confluenceToken = document.getElementById('confluenceToken');
+const confluenceSpace = document.getElementById('confluenceSpace');
+
+confluenceCheck.addEventListener('change', function() {
+  confluenceUrl.disabled = !this.checked;
+  confluenceUsername.style.display = this.checked ? '' : 'none';
+  confluenceToken.style.display = this.checked ? '' : 'none';
+  confluenceSpace.style.display = this.checked ? '' : 'none';
+});
+
+codebaseCheck.addEventListener('change', function() {
+  codebasePath.disabled = !this.checked;
+});
+
+document.getElementById('add-knowledge-form').onsubmit = async function(e) {
+  e.preventDefault();
+  let results = [];
+  if (codebaseCheck.checked && codebasePath.value) {
+    const res = await fetch('/add-knowledge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'codebase', path: codebasePath.value })
+    });
+    results.push((await res.json()).message);
+  }
+  if (confluenceCheck.checked && confluenceUrl.value) {
+    const res = await fetch('/add-knowledge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'confluence',
+        url: confluenceUrl.value,
+        username: confluenceUsername.value,
+        api_token: confluenceToken.value,
+        space_key: confluenceSpace.value
+      })
+    });
+    results.push((await res.json()).message);
+  }
+  document.getElementById('add-knowledge-result').innerText = results.join('\n');
+};
+</script>
+{% endblock %}

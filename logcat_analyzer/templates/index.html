@@ -16,12 +16,22 @@
             border-radius: 16px;
             box-shadow: 0 4px 24px 0 rgba(0,0,0,0.08);
             padding: 32px 32px 24px 32px;
+            flex: 1;
         }
         h1 {
             color: #2564cf;
             font-size: 2rem;
             margin-bottom: 1.5rem;
             font-weight: 600;
+        }
+        nav {
+            margin-bottom: 1.5rem;
+        }
+        nav a {
+            margin-right: 18px;
+            color: #2564cf;
+            text-decoration: none;
+            font-weight: 500;
         }
         #upload-form {
             display: flex;
@@ -99,22 +109,77 @@
             font-size: 0.98rem;
             margin-bottom: 1rem;
         }
+        aside {
+            width: 210px;
+            background: #f1f3f4;
+            padding: 32px 0 0 0;
+            box-shadow: 2px 0 12px 0 rgba(0,0,0,0.04);
+        }
+        aside nav {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            padding-left: 32px;
+        }
+        aside nav a {
+            color: #2564cf;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        @media (max-width: 768px) {
+            body {
+                padding: 0 10px;
+            }
+            .container {
+                margin: 20px auto;
+                padding: 24px;
+            }
+            h1 {
+                font-size: 1.5rem;
+            }
+            #chat-box {
+                height: 250px;
+            }
+            #user-input {
+                font-size: 0.9rem;
+            }
+            #chat-form button, #upload-form button {
+                padding: 6px 12px;
+                font-size: 0.9rem;
+            }
+            aside {
+                display: none;
+            }
+        }
     </style>
+    {% block head %}{% endblock %}
 </head>
 <body>
-    <div class="container">
-        <h1>Logcat Copilot</h1>
-        <form id="upload-form" action="/analyze" method="post" enctype="multipart/form-data">
-            <input type="file" name="file" id="logfile" accept=".txt,.log" required>
-            <button type="submit">Upload & Analyze</button>
-        </form>
-        <div class="status" id="status-msg">Upload your logcat file to analyze for fastrpc errors. After upload, you can ask questions about the file below.</div>
-        <div id="chat-box"></div>
-        <form id="chat-form" style="align-items: flex-end;">
-            <textarea id="user-input" placeholder="Ask about logcat errors or fastrpc..." required rows="1" style="resize:none;overflow-y:hidden;"></textarea>
-            <button type="submit" style="align-self: flex-end;">Send</button>
-        </form>
+    <div style="display: flex; min-height: 100vh;">
+        <aside>
+            <nav>
+                <a href="/" style="color: #2564cf; text-decoration: none; font-weight: 600; font-size: 1.1rem;">Home</a>
+                <a href="/add-knowledge" style="color: #2564cf; text-decoration: none; font-weight: 600; font-size: 1.1rem;">Add Knowledge Source</a>
+            </nav>
+        </aside>
+        <div class="container" style="max-width: 600px; margin: 40px auto 0 auto; flex: 1;">
+            {% block content %}
+            <h1>Logcat Copilot</h1>
+            <form id="upload-form" action="/analyze" method="post" enctype="multipart/form-data">
+                <input type="file" name="file" id="logfile" accept=".txt,.log" required>
+                <button type="submit">Upload & Analyze</button>
+            </form>
+            <div class="status" id="status-msg">Upload your logcat file to analyze for fastrpc errors. After upload, you can ask questions about the file below.</div>
+            <div id="chat-box"></div>
+            <form id="chat-form" style="align-items: flex-end;">
+                <textarea id="user-input" placeholder="Ask about logcat errors or fastrpc..." required rows="1" style="resize:none;overflow-y:hidden;"></textarea>
+                <button type="submit" style="align-self: flex-end;">Send</button>
+            </form>
+            {% endblock %}
+        </div>
     </div>
+    {% block scripts %}
     <script>
         let uploadedFilename = null;
         const chatBox = document.getElementById('chat-box');
@@ -123,50 +188,55 @@
         const uploadForm = document.getElementById('upload-form');
         const statusMsg = document.getElementById('status-msg');
 
-        uploadForm.onsubmit = async (e) => {
-            e.preventDefault();
-            const formData = new FormData(uploadForm);
-            statusMsg.textContent = 'Uploading and analyzing...';
-            const res = await fetch('/analyze', {
-                method: 'POST',
-                body: formData
-            });
-            const data = await res.json();
-            uploadedFilename = data.filename;
-            chatBox.innerHTML += `<div class='ai'><b>Copilot:</b> File uploaded and analysis started. You can now ask questions about this file.</div>`;
-            chatBox.scrollTop = chatBox.scrollHeight;
-            statusMsg.textContent = 'File uploaded. You can now chat with Copilot about your log.';
-        };
+        if (uploadForm) {
+            uploadForm.onsubmit = async (e) => {
+                e.preventDefault();
+                const formData = new FormData(uploadForm);
+                statusMsg.textContent = 'Uploading and analyzing...';
+                const res = await fetch('/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                uploadedFilename = data.filename;
+                chatBox.innerHTML += `<div class='ai'><b>Copilot:</b> File uploaded and analysis started. You can now ask questions about this file.</div>`;
+                chatBox.scrollTop = chatBox.scrollHeight;
+                statusMsg.textContent = 'File uploaded. You can now chat with Copilot about your log.';
+            };
+        }
 
-        // Auto-expand textarea for multiline input
-        userInput.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = (this.scrollHeight) + 'px';
-            // Scroll the chat form to the bottom so the send button is always visible
-            chatForm.scrollIntoView({ behavior: 'auto', block: 'end' });
-        });
-
-        chatForm.onsubmit = async (e) => {
-            e.preventDefault();
-            const userMsg = userInput.value;
-            chatBox.innerHTML += `<div class='user'>${userMsg.replace(/\n/g, '<br>')}</div>`;
-            userInput.value = '';
-            userInput.style.height = 'auto';
-            chatBox.scrollTop = chatBox.scrollHeight;
-            let apiUrl = '/chat';
-            let body = { message: userMsg };
-            if (uploadedFilename) {
-                body.filename = uploadedFilename;
-            }
-            const res = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
+        if (userInput) {
+            userInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
+                chatForm.scrollIntoView({ behavior: 'auto', block: 'end' });
             });
-            const data = await res.json();
-            chatBox.innerHTML += `<div class='ai'>${data.reply.replace(/\n/g, '<br>')}</div>`;
-            chatBox.scrollTop = chatBox.scrollHeight;
-        };
+        }
+
+        if (chatForm) {
+            chatForm.onsubmit = async (e) => {
+                e.preventDefault();
+                const userMsg = userInput.value;
+                chatBox.innerHTML += `<div class='user'>${userMsg.replace(/\n/g, '<br>')}</div>`;
+                userInput.value = '';
+                userInput.style.height = 'auto';
+                chatBox.scrollTop = chatBox.scrollHeight;
+                let apiUrl = '/chat';
+                let body = { message: userMsg };
+                if (uploadedFilename) {
+                    body.filename = uploadedFilename;
+                }
+                const res = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                chatBox.innerHTML += `<div class='ai'>${data.reply.replace(/\n/g, '<br>')}</div>`;
+                chatBox.scrollTop = chatBox.scrollHeight;
+            };
+        }
     </script>
+    {% endblock %}
 </body>
 </html>
